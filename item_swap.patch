@@ -1,0 +1,186 @@
+diff --git a/include/defines.h b/include/defines.h
+index 43526ef3d..cabe95e45 100644
+--- a/include/defines.h
++++ b/include/defines.h
+@@ -306,6 +306,7 @@
+ #define ITEM_DOUBLE_MUSHROOM     13
+ #define ITEM_TRIPLE_MUSHROOM     14
+ #define ITEM_SUPER_MUSHROOM      15
++#define ITEM_SWAP                16
+ 
+ /**
+  * @brief Balloon status
+diff --git a/mk64.ld b/mk64.ld
+index 53dfd498c..cc6fa2e95 100644
+--- a/mk64.ld
++++ b/mk64.ld
+@@ -75,6 +75,7 @@ SECTIONS
+       BUILD_DIR/src/audio/seqplayer.o(.text);
+       BUILD_DIR/src/audio/external.o(.text);
+       BUILD_DIR/src/audio/port_eu.o(.text);
++      BUILD_DIR/src/new_item.o(.text);
+       #if DEBUG
+          BUILD_DIR/src/os/osCartRomInit.o(.text);
+          BUILD_DIR/src/debug/crash_screen_enhancement.o(.text);
+@@ -231,6 +232,7 @@ SECTIONS
+       BUILD_DIR/src/audio/load.o(.data);
+       BUILD_DIR/src/audio/playback.o(.data);
+       BUILD_DIR/src/audio/effects.o(.data);
++      BUILD_DIR/src/new_item.o(.data);
+       #if DEBUG
+          BUILD_DIR/src/debug/crash_screen_enhancement.o(.data);
+          BUILD_DIR/src/debug/debug.o(.data);
+@@ -280,6 +282,7 @@ SECTIONS
+       BUILD_DIR/src/audio/seqplayer.o(.rodata);
+       BUILD_DIR/src/audio/external.o(.rodata);
+       BUILD_DIR/src/audio/port_eu.o(.rodata);
++      BUILD_DIR/src/new_item.o(.rodata);
+       #if DEBUG
+          BUILD_DIR/src/debug/crash_screen_enhancement.o(.rodata);
+          BUILD_DIR/src/debug/debug.o(.rodata);
+@@ -316,6 +319,7 @@ SECTIONS
+       BUILD_DIR/src/code_80091750.jp.o(.bss);
+       BUILD_DIR/src/code_800AF9B0.o(.bss);
+       BUILD_DIR/src/menus.o(.bss);
++      BUILD_DIR/src/new_item.o(.bss);
+       #if DEBUG
+          BUILD_DIR/src/os/osCartRomInit.o(.bss);
+          BUILD_DIR/src/debug/crash_screen_enhancement.o(.bss);
+diff --git a/src/code_80005FD0.c b/src/code_80005FD0.c
+index bc3c09c58..8aa1ec871 100644
+--- a/src/code_80005FD0.c
++++ b/src/code_80005FD0.c
+@@ -7641,6 +7641,9 @@ void func_8001AB74(s32 arg0, s16 *arg1, s32 arg2) {
+             break;
+         case ITEM_SUPER_MUSHROOM:
+             break;
++        case ITEM_SWAP:
++            value = 60;
++            break;
+     }
+     if (value >= 0) {
+         *arg1 = value;
+@@ -7658,7 +7661,6 @@ void func_8001ABEC(struct struct_801642D8 *arg0) {
+     }
+ }
+ 
+-#ifdef NON_MATCHING
+ // By the looks of this function is probably something like `cpu_player_use_item`
+ // The use of several different actor types might make getting a match hard(er),
+ // might have to get creative/ugly with just a single generic `Actor` variable.
+@@ -8098,7 +8100,10 @@ void func_8001AC10(s32 playerId) {
+                 }
+             }
+             break;
+-
++        case 60:
++            use_swap(player);
++            temp_s0->unk_00 = 0;
++            break;
+         default:
+             break;
+         }
+@@ -8111,9 +8116,6 @@ void func_8001AC10(s32 playerId) {
+         }
+     }
+ }
+-#else
+-GLOBAL_ASM("asm/non_matchings/code_80005FD0/func_8001AC10.s")
+-#endif
+ 
+ void func_8001BE78(void) {
+     Player* temp_s1;
+diff --git a/src/code_80071F00.c b/src/code_80071F00.c
+index a402005ad..d8254c6f4 100644
+--- a/src/code_80071F00.c
++++ b/src/code_80071F00.c
+@@ -3664,6 +3664,11 @@ u8 gen_random_item(s16 rank, s16 isCpu)
+         }
+         randomItem =  *((rank * 100) + curve + sRandomItemIndex);
+     }
++
++    if (random_int(4) == 0){
++        return ITEM_SWAP;
++    }
++
+     return randomItem;
+ }
+ 
+diff --git a/src/new_item.c b/src/new_item.c
+new file mode 100644
+index 000000000..e6c1d972f
+--- /dev/null
++++ b/src/new_item.c
+@@ -0,0 +1,36 @@
++#include "new_item.h"
++#include <ultra64.h>
++#include <macros.h>
++#include <defines.h>
++#include <actor_types.h>
++#include "main.h"
++
++void use_swap(Player *player){
++    s32 id_to_swap;
++    Vec3f tmp;
++    Vec3s tmp_rot;
++    id_to_swap = random_int(7);
++    tmp[0] = player->pos[0];
++    tmp[1] = player->pos[1];
++    tmp[2] = player->pos[2];
++
++    player->pos[0] = gPlayerOne[id_to_swap].pos[0];
++    player->pos[1] = gPlayerOne[id_to_swap].pos[1];
++    player->pos[2] = gPlayerOne[id_to_swap].pos[2];
++
++    gPlayerOne[id_to_swap].pos[0] = tmp[0];
++    gPlayerOne[id_to_swap].pos[1] = tmp[1];
++    gPlayerOne[id_to_swap].pos[2] = tmp[2];
++
++    tmp_rot[0] = player->unk_02C[0];
++    tmp_rot[1] = player->unk_02C[1];
++    tmp_rot[2] = player->unk_02C[2];
++
++    player->unk_02C[0] = gPlayerOne[id_to_swap].unk_02C[0];
++    player->unk_02C[1] = gPlayerOne[id_to_swap].unk_02C[1];
++    player->unk_02C[2] = gPlayerOne[id_to_swap].unk_02C[2];
++
++    gPlayerOne[id_to_swap].unk_02C[0] = tmp_rot[0];
++    gPlayerOne[id_to_swap].unk_02C[1] = tmp_rot[1];
++    gPlayerOne[id_to_swap].unk_02C[2] = tmp_rot[2];
++}
+diff --git a/src/new_item.h b/src/new_item.h
+new file mode 100644
+index 000000000..c4c2efce0
+--- /dev/null
++++ b/src/new_item.h
+@@ -0,0 +1,8 @@
++#ifndef NEW_ITEM_H
++#define NEW_ITEM_H
++
++#include <actor_types.h>
++
++void use_swap(Player *);
++
++#endif // NEW_ITEM_H
+\ No newline at end of file
+diff --git a/src/racing/actors_extended.c b/src/racing/actors_extended.c
+index de5920df5..54473d852 100644
+--- a/src/racing/actors_extended.c
++++ b/src/racing/actors_extended.c
+@@ -14,6 +14,7 @@
+ #include "audio/external.h"
+ #include "code_80071F00.h"
+ #include "code_8008C1D0.h"
++#include "new_item.h"
+ 
+ void func_802B0210(Collision *arg0, Collision *arg1) {
+     arg1->unk30 = arg0->unk30;
+@@ -1093,6 +1094,8 @@ void func_802B2FA0(Player *player) {
+     case ITEM_TRIPLE_RED_SHELL:
+         use_triple_shell_item(player, ACTOR_TRIPLE_RED_SHELL);
+         break;
++    case ITEM_SWAP:
++        use_swap(player);
+     }
+     consume_item(playerId);
+ }
